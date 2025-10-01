@@ -1,0 +1,44 @@
+# Airflow directories
+logs/
+airflow.cfg
+unittests.cfg
+
+# SQLite database (ถ้าใช้ LocalExecutor/SequentialExecutor ช่วง dev)
+airflow.db
+airflow.sqlite
+
+# Environment
+.env
+*.env
+
+# Compiled files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.swp
+
+# IDE/Editor settings
+.vscode/
+.idea/
+*.iml
+
+# Docker volumes / mounts (ปรับตามโปรเจกต์คุณ)
+dags/__pycache__/
+plugins/__pycache__/
+config/__pycache__/
+
+# Output data (ถ้าเซฟ parquet/csv ชั่วคราว)
+data/raw/
+data/parquet/
+*.parquet
+
+# dbt (เลือก ignore เฉพาะที่ไม่อยากเก็บใน repo)
+dbt/target/
+dbt/dbt_modules/
+dbt/logs/
+dbt/warehouse.duckdb
+
+# OS-specific
+.DS_Store
+Thumbs.db

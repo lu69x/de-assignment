@@ -1,0 +1,4 @@
+dbt-duckdb==1.9.6
+duckdb==1.4.0
+# numpy==2.3.3
+# pandas==2.3.3

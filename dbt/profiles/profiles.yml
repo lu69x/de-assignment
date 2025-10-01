@@ -1,0 +1,9 @@
+data_eng_assignment:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: /opt/airflow/dbt/warehouse.duckdb   # << path ของ DuckDB file
+      schema: analytics
+      threads: 4
+      extensions: [httpfs, parquet, json, iceberg]
