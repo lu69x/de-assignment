@@ -1,8 +1,10 @@
 from airflow import DAG
 from airflow.decorators import task
+import subprocess
 from datetime import datetime
 import requests
 import os
+from time import sleep
 
 # Define a DAG
 with DAG(
@@ -16,7 +18,7 @@ with DAG(
     @task
     def ingest_file():
         url = "https://data.cdc.gov/api/views/hksd-2xuw/rows.csv?accessType=DOWNLOAD"  # example file
-        output_dir = "/opt/airflow/dags/data"
+        output_dir = "/opt/airflow/data/raw"
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, "cdc_data.csv")
 
@@ -29,16 +31,25 @@ with DAG(
 
     @task
     def cleansing_data():
+        sleep(5)
         print("Data cleansing task - to be implemented")
         pass
 
     @task
     def transform_data():
-        print("Data transformation task - to be implemented")
-        pass
+        subprocess.run(
+            [
+                "dbt", "run",
+                "--profiles-dir", "/home/airflow/.dbt",
+                "--project-dir", "/opt/airflow/dbt",
+                "--vars", '{"csv_path":"/opt/airflow/data/raw/cdc_data.csv"}'
+            ],
+            check=True,
+        )
 
     @task
     def load_data():
+        sleep(5)
         print("Data loading task - to be implemented")
         pass
 

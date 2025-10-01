@@ -18,7 +18,7 @@ def dbt_duckdb_test():
                 "dbt", "run",
                 "--profiles-dir", "/home/airflow/.dbt",
                 "--project-dir", "/opt/airflow/dbt",
-                "--vars", f"csv_path:/opt/airflow/dags/data/cdc_data.csv"
+                "--vars", f"csv_path:/opt/airflow/data/raw/cdc_data.csv"
             ],
             check=True,
         )

@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: stg_cdi_clean
+    columns:
+      - name: year
+        tests: [not_null]
+      - name: state
+        tests: [not_null]
+      - name: indicator
+        tests: [not_null]
+      - name: value
+        tests: [not_null]
+
+  - name: agg_indicator_year_state
+    columns:
+      - name: year
+        tests: [not_null]
+      - name: state
+        tests: [not_null]
+      - name: indicator
+        tests: [not_null]
