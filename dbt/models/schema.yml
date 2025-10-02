@@ -1,22 +1,47 @@
 version: 2
 
 models:
-  - name: stg_cdi_clean
-    columns:
-      - name: year
-        tests: [not_null]
-      - name: state
-        tests: [not_null]
-      - name: indicator
-        tests: [not_null]
-      - name: value
-        tests: [not_null]
-
   - name: agg_indicator_year_state
+    description: "Average value by year x state x indicator."
     columns:
       - name: year
         tests: [not_null]
       - name: state
         tests: [not_null]
-      - name: indicator
+      - name: indicator_name
         tests: [not_null]
+      - name: avg_value
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [year, state, indicator_name]
+
+  - name: agg_indicator_trend
+    description: "Yearly trend grouped by indicator and stratification."
+    columns:
+      - name: indicator_name
+        tests: [not_null]
+      - name: category
+        tests: [not_null]
+      - name: subcategory
+        tests: [not_null]
+      - name: year
+        tests: [not_null]
+      - name: avg_value
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [indicator_name, category, subcategory, year]
+
+  - name: agg_indicator_year_overall
+    description: "Overall average by indicator per year (no stratification)."
+    columns:
+      - name: indicator_name
+        tests: [not_null]
+      - name: year
+        tests: [not_null]
+      - name: avg_value
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [indicator_name, year]

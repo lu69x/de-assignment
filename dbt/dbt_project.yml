@@ -1,11 +1,28 @@
+# dbt_project.yml
 name: data_eng_assignment
-profile: data_eng_assignment
-model-paths: ["models"]
 version: "1.0"
+config-version: 2
 
+profile: data_eng_assignment
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# ค่าเริ่มต้น
 models:
-  my_dbt_project:
-    +materialized: table
+  data_eng_assignment:              # <<< ต้องตรงกับ name ด้านบน
+    +materialized: view             # ค่า default สำหรับทั้งโปรเจกต์ (จะถูก override ด้านล่าง)
+    +schema: analytics              # ใส่ schema รวม (ปรับตามต้องการ)
+
+    staging:
+      +materialized: view           # ชั้น staging เป็น view
+      # ถ้าต้องการ schema แยก:
+      # +schema: staging
+
     marts:
+      +materialized: table          # ชั้น marts เป็น table (จะถูก COPY เป็น Parquet)
+      # เขียนผลลัพธ์ของแต่ละ model ใน marts ออกเป็น Parquet หลังรันเสร็จ
       +post-hook:
         - "copy (select * from {{ this }}) to '/opt/airflow/data/parquet/{{ this.name }}.parquet' (format parquet);"
