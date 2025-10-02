@@ -41,6 +41,10 @@ dbt/package-lock.yml
 dbt/logs/
 dbt/warehouse.duckdb
 
+# minio
+minio/.*
+minio/
+
 # OS-specific
 .DS_Store
 Thumbs.db
