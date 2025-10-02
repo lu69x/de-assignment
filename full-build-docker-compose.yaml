@@ -1,13 +1,56 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Basic Airflow cluster configuration for CeleryExecutor with Redis and PostgreSQL.
+#
+# WARNING: This configuration is for local development. Do not use it in a production deployment.
+#
+# This configuration supports basic configuration using environment variables or an .env file
+# The following variables are supported:
+#
+# AIRFLOW_IMAGE_NAME           - Docker image name used to run Airflow.
+#                                Default: apache/airflow:3.1.0
+# AIRFLOW_UID                  - User ID in Airflow containers
+#                                Default: 50000
+# AIRFLOW_PROJ_DIR             - Base path to which all the files will be volumed.
+#                                Default: .
+# Those configurations are useful mostly in case of standalone testing/running Airflow in test/try-out mode
+#
+# _AIRFLOW_WWW_USER_USERNAME   - Username for the administrator account (if requested).
+#                                Default: airflow
+# _AIRFLOW_WWW_USER_PASSWORD   - Password for the administrator account (if requested).
+#                                Default: airflow
+# _PIP_ADDITIONAL_REQUIREMENTS - Additional PIP requirements to add when starting all containers.
+#                                Use this option ONLY for quick checks. Installing requirements at container
+#                                startup is done EVERY TIME the service is started.
+#                                A better way is to build a custom image or extend the official image
+#                                as described in https://airflow.apache.org/docs/docker-stack/build.html.
+#                                Default: ''
+#
+# Feel free to modify this file to suit your needs.
+---
 x-airflow-common:
   &airflow-common
   # In order to add custom dependencies or upgrade provider distributions you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
-  
-  # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.1.0}
-  build:      # <-- ใช้ build แทน image
-    context: .
-    dockerfile: Dockerfile.airflow
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.1.0}
+  # build: .
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -53,8 +96,6 @@ services:
   postgres:
     image: postgres:16
     container_name: airflow_postgres
-    networks: 
-      - data_eng_nw
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -73,8 +114,6 @@ services:
     # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
     image: redis:7.2-bookworm
     container_name: airflow_redis
-    networks: 
-      - data_eng_nw
     expose:
       - 6379
     healthcheck:
@@ -88,8 +127,6 @@ services:
   airflow-apiserver:
     <<: *airflow-common
     container_name: airflow_apiserver
-    networks: 
-      - data_eng_nw
     command: api-server
     ports:
       - "8080:8080"
@@ -108,8 +145,6 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     container_name: airflow_scheduler
-    networks: 
-      - data_eng_nw
     command: scheduler
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
@@ -126,8 +161,6 @@ services:
   airflow-dag-processor:
     <<: *airflow-common
     container_name: airflow_dag_processor
-    networks: 
-      - data_eng_nw
     command: dag-processor
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
@@ -144,8 +177,6 @@ services:
   airflow-worker:
     <<: *airflow-common
     container_name: airflow_worker
-    networks: 
-      - data_eng_nw
     command: celery worker
     healthcheck:
       # yamllint disable rule:line-length
@@ -172,8 +203,6 @@ services:
   airflow-triggerer:
     <<: *airflow-common
     container_name: airflow_triggerer
-    networks: 
-      - data_eng_nw
     command: triggerer
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
@@ -190,8 +219,6 @@ services:
   airflow-init:
     <<: *airflow-common
     container_name: airflow_init
-    networks: 
-      - data_eng_nw
     entrypoint: /bin/bash
     # yamllint disable rule:line-length
     command:
@@ -285,8 +312,6 @@ services:
   airflow-cli:
     <<: *airflow-common
     container_name: airflow_cli
-    networks: 
-      - data_eng_nw
     profiles:
       - debug
     environment:
@@ -306,8 +331,6 @@ services:
   flower:
     <<: *airflow-common
     container_name: airflow_flower
-    networks: 
-      - data_eng_nw
     command: celery flower
     profiles:
       - flower
@@ -327,10 +350,3 @@ services:
 
 volumes:
   postgres-db-volume:
-    name: postgres-db-volume
-    
-networks:
-  data_eng_nw:
-    name: data_eng_nw
-    driver: bridge
-    external: true

@@ -24,7 +24,7 @@ cat > "$ENV_FILE" <<EOF
 AIRFLOW_UID=${USER_UID}
 AIRFLOW_GID=${USER_GID}
 AIRFLOW_PROJ_DIR="."
-_PIP_ADDITIONAL_REQUIREMENTS="-r /opt/airflow/requirements.txt"
+# _PIP_ADDITIONAL_REQUIREMENTS="-r /opt/airflow/requirements.txt"
 
 # --- DBT Configuration ---
 DBT_PROJ_DIR="./dbt"

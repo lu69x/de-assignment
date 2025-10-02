@@ -1,0 +1,16 @@
+# Dockerfile.airflow
+FROM apache/airflow:3.1.0
+
+# (ถ้าต้องการ system deps เพิ่ม ให้ทำตอน root)
+USER root
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     curl ca-certificates build-essential && \
+#     rm -rf /var/lib/apt/lists/*
+
+# คัดลอก requirements เข้ามาก่อน แล้วสลับเป็น user airflow ค่อย pip install
+COPY --chown=airflow:0 requirements.txt /opt/airflow/requirements.txt
+
+# รัน pip ด้วย user airflow 
+USER airflow
+# ใช้ python -m pip และไม่ต้อง --user เพราะ PATH/venv ของ image จัดให้แล้ว
+RUN python -m pip install --no-cache-dir -r /opt/airflow/requirements.txt
