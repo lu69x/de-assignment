@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
 import os
 import subprocess
 from datetime import timedelta
@@ -23,6 +24,8 @@ S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "admin123456")
 S3_REGION = os.getenv("S3_REGION", "us-east-1")
 S3_ADDRESSING_STYLE = os.getenv("S3_ADDRESSING_STYLE", "path")
 S3_BUCKET = os.getenv("S3_BUCKET", "warehouse")
+S3_PARQUET_PREFIX = os.getenv("S3_PARQUET_PREFIX", "assignment/parquet")
+S3_DOCS_PREFIX = os.getenv("S3_DOCS_PREFIX", "assignment/docs")
 
 # ตำแหน่งเก็บไฟล์ ingest (raw)
 S3_RAW_PREFIX = os.getenv("S3_RAW_PREFIX", "assignment/raw")
@@ -89,6 +92,49 @@ def _s3_client():
         config=boto3.session.Config(
             s3={"addressing_style": S3_ADDRESSING_STYLE}),
     )
+
+
+def _dbt_env() -> dict[str, str]:
+    """Build environment variables required for dbt commands."""
+    return {
+        "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
+        "AWS_SECRET_ACCESS_KEY": S3_SECRET_ACCESS_KEY,
+        "AWS_DEFAULT_REGION": S3_REGION,
+        "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
+        "S3_ENDPOINT_URL": S3_ENDPOINT_URL,
+        "AWS_S3_ADDRESSING_STYLE": S3_ADDRESSING_STYLE,
+    }
+
+
+def _upload_directory_to_s3(local_dir: str | Path, bucket: str, prefix: str) -> list[str]:
+    """Upload the contents of *local_dir* to S3 under *bucket/prefix*."""
+    base = Path(local_dir)
+    if not base.exists():
+        raise FileNotFoundError(f"Directory not found: {local_dir}")
+
+    client = _s3_client()
+    uploaded: list[str] = []
+    normalized_prefix = prefix.strip("/")
+
+    for file_path in base.rglob("*"):
+        if not file_path.is_file():
+            continue
+
+        rel_key = file_path.relative_to(base).as_posix()
+        key_parts = [normalized_prefix, rel_key] if normalized_prefix else [rel_key]
+        key = "/".join(filter(None, key_parts))
+
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        extra_args = {"ContentType": content_type} if content_type else None
+
+        if extra_args:
+            client.upload_file(str(file_path), bucket, key, ExtraArgs=extra_args)
+        else:
+            client.upload_file(str(file_path), bucket, key)
+
+        uploaded.append(key)
+
+    return uploaded
 
 
 # ===== DAG =====
@@ -195,21 +241,14 @@ with DAG(
 
         bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
         parquet_prefix = s3_parquet_prefix or str(
-            dag.params.get("s3_parquet_prefix") or "assignment/parquet")
+            dag.params.get("s3_parquet_prefix") or S3_PARQUET_PREFIX)
         parquet_prefix = parquet_prefix.strip("/")
 
         # dbt post-hooks copy DuckDB tables to local Parquet files; ensure the
         # destination folder exists so COPY does not fail with "No such file".
         PARQUET_DIR.mkdir(parents=True, exist_ok=True)
 
-        s3_env = {
-            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
-            "AWS_SECRET_ACCESS_KEY": S3_SECRET_ACCESS_KEY,
-            "AWS_DEFAULT_REGION": S3_REGION,
-            "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
-            "S3_ENDPOINT_URL": S3_ENDPOINT_URL,
-            "AWS_S3_ADDRESSING_STYLE": S3_ADDRESSING_STYLE,
-        }
+        s3_env = _dbt_env()
 
         # Debug/Deps
         _run(["dbt", "--version"], extra_env=s3_env)
@@ -259,24 +298,22 @@ with DAG(
         retry_delay=timedelta(minutes=1),
         execution_timeout=timedelta(minutes=10),
     )
-    def publish_lineage_docs(_: str) -> str:
+    def publish_lineage_docs(csv_s3_uri: str, s3_out_uri: str) -> str:
         """Generate dbt docs (manifest + catalog) and upload to S3 for lineage browsing."""
-        
-        s3_env = {
-            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
-            "AWS_SECRET_ACCESS_KEY": S3_SECRET_ACCESS_KEY,
-            "AWS_DEFAULT_REGION": S3_REGION,
-            "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
-            "S3_ENDPOINT_URL": S3_ENDPOINT_URL,
-            "AWS_S3_ADDRESSING_STYLE": S3_ADDRESSING_STYLE,
-        }
-        
+
+        bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
+        parquet_prefix = str(
+            dag.params.get("s3_parquet_prefix") or S3_PARQUET_PREFIX).strip("/")
+
+        s3_env = _dbt_env()
+
         vars_json = json.dumps({
             "csv_s3_uri": csv_s3_uri,
             "s3_bucket": bucket,
             "s3_prefix": parquet_prefix,
+            "s3_output_uri": s3_out_uri,
         })
-        
+
         _run([
             "dbt",
             "docs",
@@ -334,5 +371,5 @@ with DAG(
     csv = ingest_file()
     cleaned = cleansing_data(csv)
     s3_uri = transform_data(cleaned)
-    docs_uri = publish_lineage_docs(s3_uri)
+    docs_uri = publish_lineage_docs(cleaned, s3_uri)
     load_data(s3_uri, docs_uri)
