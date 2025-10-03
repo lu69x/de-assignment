@@ -23,6 +23,18 @@ models:
 
     marts:
       +materialized: table          # ชั้น marts เป็น table (จะถูก COPY เป็น Parquet)
-      # เขียนผลลัพธ์ของแต่ละ model ใน marts ออกเป็น Parquet หลังรันเสร็จ
+      # เขียนผลลัพธ์ของแต่ละ model ใน marts ออกเป็น Parquet บน S3/MinIO หลังรันเสร็จ
       +post-hook:
-        - "copy (select * from {{ this }}) to '/opt/airflow/data/parquet/{{ this.name }}.parquet' (format parquet);"
+        - |
+          {% set bucket = var('s3_bucket', env_var('S3_BUCKET', 'warehouse')) %}
+          {% set prefix = var('s3_prefix', env_var('S3_PARQUET_PREFIX', 'assignment/parquet')) %}
+          {% if prefix.endswith('/') %}
+            {% set key_prefix = prefix[:-1] %}
+          {% else %}
+            {% set key_prefix = prefix %}
+          {% endif %}
+          {% if key_prefix %}
+            copy (select * from {{ this }}) to 's3://{{ bucket }}/{{ key_prefix }}/{{ this.name }}.parquet' (format parquet, overwrite_or_ignore);
+          {% else %}
+            copy (select * from {{ this }}) to 's3://{{ bucket }}/{{ this.name }}.parquet' (format parquet, overwrite_or_ignore);
+          {% endif %}

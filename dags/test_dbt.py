@@ -188,6 +188,7 @@ with DAG(
 
         bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
         parquet_prefix = s3_parquet_prefix or str(dag.params.get("s3_parquet_prefix") or "assignment/parquet")
+        parquet_prefix = parquet_prefix.strip("/")
 
         # dbt post-hooks copy DuckDB tables to local Parquet files; ensure the
         # destination folder exists so COPY does not fail with "No such file".
@@ -236,7 +237,10 @@ with DAG(
             extra_env=s3_env,
         )
 
-        out_uri = f"s3://{bucket}/{parquet_prefix.rstrip('/')}"
+        if parquet_prefix:
+            out_uri = f"s3://{bucket}/{parquet_prefix}"
+        else:
+            out_uri = f"s3://{bucket}"
         logger.info("[transform_data] completed. Output in: %s", out_uri)
         return out_uri
 
