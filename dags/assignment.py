@@ -179,6 +179,14 @@ with DAG(
 
         s3_prefix = S3_PARQUET_PREFIX.strip("/")
         s3_env = _dbt_env()
+        s3_env = {
+            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
+            "AWS_SECRET_ACCESS_KEY": S3_SECRET_ACCESS_KEY,
+            "AWS_DEFAULT_REGION": S3_REGION,
+            "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
+            "S3_ENDPOINT_URL": S3_ENDPOINT_URL,
+            "AWS_S3_ADDRESSING_STYLE": S3_ADDRESSING_STYLE,
+        }
 
         # Show versions & environment status first (helps debugging profiles)
         _run(["dbt", "--version"], extra_env=s3_env)
