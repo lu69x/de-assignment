@@ -62,14 +62,28 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
-    
 
-    
+
+
     # yamllint disable rule:line-length
     # Use simple http server on scheduler for health checks
     # See https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/check-health.html#scheduler-health-check-server
     # yamllint enable rule:line-length
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    # Default object storage configuration (overridable via .env)
+    AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://minio:9000}
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-admin}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-admin123456}
+    AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+    AWS_S3_ADDRESSING_STYLE: ${AWS_S3_ADDRESSING_STYLE:-path}
+    S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+    S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-admin}
+    S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-admin123456}
+    S3_REGION: ${S3_REGION:-us-east-1}
+    S3_ADDRESSING_STYLE: ${S3_ADDRESSING_STYLE:-path}
+    S3_BUCKET: ${S3_BUCKET:-warehouse}
+    S3_PARQUET_PREFIX: ${S3_PARQUET_PREFIX:-assignment/parquet}
+    S3_DOCS_PREFIX: ${S3_DOCS_PREFIX:-assignment/docs}
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
