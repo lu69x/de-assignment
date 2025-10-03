@@ -7,11 +7,23 @@ from datetime import timedelta
 import requests
 import json
 from typing import Optional
+import boto3
+import mimetypes
+from pathlib import Path
+
+# ---------- S3 Config ----------
+S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", "http://minio:9000")
+S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "admin")
+S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "admin123456")
+S3_REGION = os.getenv("S3_REGION", "us-east-1")
+S3_ADDRESSING_STYLE = os.getenv("S3_ADDRESSING_STYLE", "path")
+S3_BUCKET = os.getenv("S3_BUCKET", "warehouse")
+S3_PARQUET_PREFIX = os.getenv("S3_PARQUET_PREFIX", "assignment/parquet")
+S3_DOCS_PREFIX = os.getenv("S3_DOCS_PREFIX", "assignment/docs")
 
 # ---------- Constants ----------
 AIRFLOW_DATA_DIR = "/opt/airflow/data"
 RAW_DIR = os.path.join(AIRFLOW_DATA_DIR, "raw")
-PARQUET_DIR = os.path.join(AIRFLOW_DATA_DIR, "parquet")
 CSV_NAME = "cdc_data.csv"
 CSV_URL = "https://data.cdc.gov/api/views/hksd-2xuw/rows.csv?accessType=DOWNLOAD"
 
@@ -23,15 +35,18 @@ CHUNK_SIZE = 1 << 14               # 16KB
 
 
 # ---------- Helpers ----------
-def _run(cmd: list[str]) -> None:
+def _run(cmd: list[str], extra_env: Optional[dict[str, str]] = None) -> None:
     """Run a shell command, print stdout/stderr always; raise on non-zero."""
     print(f"[cmd] {' '.join(cmd)}")
+    env = {**os.environ}
+    if extra_env:
+        env.update(extra_env)
     p = subprocess.run(
         cmd,
         cwd=DBT_PROJECT_DIR,
         text=True,
         capture_output=True,
-        env={**os.environ},
+        env=env,
         check=False,
     )
     if p.stdout:
@@ -45,7 +60,52 @@ def _run(cmd: list[str]) -> None:
 
 def _ensure_dirs() -> None:
     os.makedirs(RAW_DIR, exist_ok=True)
-    os.makedirs(PARQUET_DIR, exist_ok=True)
+
+
+def _dbt_env() -> dict[str, str]:
+    return {
+        "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
+        "AWS_SECRET_ACCESS_KEY": S3_SECRET_ACCESS_KEY,
+        "AWS_DEFAULT_REGION": S3_REGION,
+        "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
+        "S3_ENDPOINT_URL": S3_ENDPOINT_URL,
+        "AWS_S3_ADDRESSING_STYLE": S3_ADDRESSING_STYLE,
+    }
+
+
+def _s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=S3_ENDPOINT_URL,
+        aws_access_key_id=S3_ACCESS_KEY_ID,
+        aws_secret_access_key=S3_SECRET_ACCESS_KEY,
+        region_name=S3_REGION,
+        config=boto3.session.Config(s3={"addressing_style": S3_ADDRESSING_STYLE}),
+    )
+
+
+def _upload_directory_to_s3(local_dir: str, bucket: str, prefix: str) -> list[str]:
+    base = Path(local_dir)
+    if not base.exists():
+        raise FileNotFoundError(f"Directory not found: {local_dir}")
+
+    client = _s3_client()
+    uploaded: list[str] = []
+
+    for file_path in base.rglob("*"):
+        if not file_path.is_file():
+            continue
+        rel = file_path.relative_to(base).as_posix()
+        key = "/".join([p for p in [prefix.strip("/"), rel] if p])
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        extra_args = {"ContentType": content_type} if content_type else None
+        if extra_args:
+            client.upload_file(str(file_path), bucket, key, ExtraArgs=extra_args)
+        else:
+            client.upload_file(str(file_path), bucket, key)
+        uploaded.append(key)
+
+    return uploaded
 
 
 # ---------- DAG ----------
@@ -108,57 +168,113 @@ with DAG(
         retry_delay=timedelta(seconds=30),
         execution_timeout=timedelta(minutes=25),
     )
-    def transform_data(csv_path: str) -> None:
+    def transform_data(csv_path: str) -> str:
         """
         Run dbt to build staging/marts. Models should read the CSV via:
           read_csv_auto('{{ var("csv_path", "/opt/airflow/data/raw/cdc_data.csv") }}')
-        dbt_project.yml should set post-hook on marts to COPY Parquet into PARQUET_DIR.
+        และเขียนผลลัพธ์เป็น Parquet ลง S3 โดยใช้ตัวแปร s3_bucket/s3_prefix.
         """
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"[transform_data] CSV not found: {csv_path}")
 
+        s3_prefix = S3_PARQUET_PREFIX.strip("/")
+        s3_env = _dbt_env()
+
         # Show versions & environment status first (helps debugging profiles)
-        _run(["dbt", "--version"])
-        _run(["dbt", "debug", "--profiles-dir", DBT_PROFILES_DIR, "--project-dir", DBT_PROJECT_DIR])
+        _run(["dbt", "--version"], extra_env=s3_env)
+        _run(["dbt", "debug", "--profiles-dir", DBT_PROFILES_DIR, "--project-dir", DBT_PROJECT_DIR], extra_env=s3_env)
         
         # ใน dags/assignment.py (ภายใน transform_data ก่อน dbt run/test)
-        _run(["dbt", "deps", "--profiles-dir", DBT_PROFILES_DIR, "--project-dir", DBT_PROJECT_DIR])
+        _run(["dbt", "deps", "--profiles-dir", DBT_PROFILES_DIR, "--project-dir", DBT_PROJECT_DIR], extra_env=s3_env)
 
 
         # Run models
-        vars_json = json.dumps({"csv_path": csv_path})
+        vars_json = json.dumps({
+            "csv_path": csv_path,
+            "s3_bucket": S3_BUCKET,
+            "s3_prefix": s3_prefix,
+        })
         _run([
             "dbt", "run",
             "--profiles-dir", DBT_PROFILES_DIR,
             "--project-dir", DBT_PROJECT_DIR,
             "--vars", vars_json,
-        ])
+        ], extra_env=s3_env)
 
         # Optional: run tests
         _run([
             "dbt", "test",
             "--profiles-dir", DBT_PROFILES_DIR,
             "--project-dir", DBT_PROJECT_DIR,
-        ])
+            "--vars", vars_json,
+        ], extra_env=s3_env)
+
+        if s3_prefix:
+            out_uri = f"s3://{S3_BUCKET}/{s3_prefix}"
+        else:
+            out_uri = f"s3://{S3_BUCKET}"
+        print(f"[transform_data] completed. Output in: {out_uri}")
+        return out_uri
+
+    @task(
+        retries=1,
+        retry_delay=timedelta(minutes=1),
+        execution_timeout=timedelta(minutes=10),
+    )
+    def publish_lineage_docs(_: str) -> str:
+        """Generate dbt docs (manifest + catalog) and upload to S3 for lineage browsing."""
+
+        s3_env = _dbt_env()
+        _run([
+            "dbt",
+            "docs",
+            "generate",
+            "--profiles-dir",
+            DBT_PROFILES_DIR,
+            "--project-dir",
+            DBT_PROJECT_DIR,
+        ], extra_env=s3_env)
+
+        docs_dir = os.path.join(DBT_PROJECT_DIR, "target")
+        timestamp = pendulum.now("UTC").format("YYYYMMDDTHHmmss")
+        base_prefix = S3_DOCS_PREFIX.strip("/")
+        versioned_prefix = "/".join(filter(None, [base_prefix, timestamp]))
+        uploaded = _upload_directory_to_s3(docs_dir, S3_BUCKET, versioned_prefix)
+
+        if not uploaded:
+            raise RuntimeError("No docs were uploaded; check dbt docs generate output")
+
+        latest_prefix = "/".join(filter(None, [base_prefix, "latest"]))
+        _upload_directory_to_s3(docs_dir, S3_BUCKET, latest_prefix)
+
+        docs_uri = f"s3://{S3_BUCKET}/{versioned_prefix}/index.html"
+        print(f"[publish_lineage_docs] Uploaded {len(uploaded)} files under s3://{S3_BUCKET}/{versioned_prefix}")
+        print(f"[publish_lineage_docs] Latest docs alias at s3://{S3_BUCKET}/{latest_prefix}/index.html")
+        return docs_uri
 
     @task(
         retries=1,
         retry_delay=timedelta(minutes=1),
         execution_timeout=timedelta(minutes=5),
     )
-    def load_data() -> None:
+    def load_data(s3_out_uri: str, docs_uri: str) -> None:
         """
-        Placeholder for publishing step (e.g., move Parquet to lake/Iceberg).
-        For now, just ensure Parquet dir exists and list files if any.
+        Placeholder for publishing step. ตอนนี้ Parquet อยู่บน S3 แล้ว แค่ list objects.
         """
-        _ensure_dirs()
-        files = []
-        if os.path.exists(PARQUET_DIR):
-            files = sorted(os.listdir(PARQUET_DIR))
-        print(f"[load_data] parquet dir: {PARQUET_DIR}")
-        print(f"[load_data] files: {files}")
+        prefix = S3_PARQUET_PREFIX.strip("/")
+        client = _s3_client()
+        list_kwargs = {"Bucket": S3_BUCKET}
+        if prefix:
+            list_kwargs["Prefix"] = f"{prefix}/"
+        resp = client.list_objects_v2(**list_kwargs)
+        keys = [item["Key"] for item in resp.get("Contents", [])]
+        print(f"[load_data] published to: {s3_out_uri}")
+        print(f"[load_data] objects: {keys}")
+        print(f"[load_data] lineage docs: {docs_uri}")
 
     # Wiring
     csv = ingest_file()                 # or ingest_file(force=True) if you need re-download
     cleaned = cleansing_data(csv)
-    transform_data(cleaned) >> load_data()
+    s3_uri = transform_data(cleaned)
+    docs_uri = publish_lineage_docs(s3_uri)
+    load_data(s3_uri, docs_uri)
