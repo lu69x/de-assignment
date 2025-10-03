@@ -113,3 +113,13 @@ classDef silver fill:#e6f2ff,stroke:#69f
 classDef gold fill:#fff4b3,stroke:#cb3
 classDef hidden display:none
 ```
+
+## 📊 Data Lineage (dbt Docs)
+The `data_engineer_assignment` DAG now generates dbt documentation after every run. This produces the manifest, catalog, and the interactive lineage graph so you can trace every mart back to its staging sources.
+
+1. When the DAG finishes the `publish_lineage_docs` task uploads the docs bundle to MinIO using the bucket/prefix configured by `S3_BUCKET` and `S3_DOCS_PREFIX` (default: `warehouse/assignment/docs`).
+2. Each run is versioned by timestamp (e.g. `s3://warehouse/assignment/docs/20250101120000/index.html`) and a `latest/` alias is refreshed for convenience.
+3. Open the MinIO Console → bucket `warehouse` → folder `assignment/docs/latest/` and download `index.html` (and the accompanying assets) or click the object preview to render the lineage graph directly in the browser.
+4. You can also sync the folder locally with the MinIO CLI / AWS CLI: `aws --endpoint-url http://localhost:9000 s3 sync s3://warehouse/assignment/docs/latest ./docs` then open `./docs/index.html`.
+
+> Tip: dbt exposures defined under `dbt/models/schema.yml` describe downstream dashboards so the lineage view highlights how marts power each consumer.

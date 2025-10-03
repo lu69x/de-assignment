@@ -45,3 +45,19 @@ models:
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [indicator_name, year]
+
+exposures:
+  - name: public_health_monitoring_dashboard
+    type: dashboard
+    maturity: medium
+    url: https://trino.local/dashboard/public-health
+    description: >-
+      Analytics workspace that tracks CDC chronic disease indicators across time, state, and stratification.
+      The dashboard consumes all marts published by this project.
+    owner:
+      name: Data Engineering Team
+      email: data-eng@example.com
+    depends_on:
+      - ref('agg_indicator_year_state')
+      - ref('agg_indicator_year_overall')
+      - ref('agg_indicator_trend')
