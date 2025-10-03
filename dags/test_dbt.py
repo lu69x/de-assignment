@@ -23,6 +23,7 @@ S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "admin123456")
 S3_REGION = os.getenv("S3_REGION", "us-east-1")
 S3_ADDRESSING_STYLE = os.getenv("S3_ADDRESSING_STYLE", "path")
 S3_BUCKET = os.getenv("S3_BUCKET", "warehouse")
+
 # ตำแหน่งเก็บไฟล์ ingest (raw)
 S3_RAW_PREFIX = os.getenv("S3_RAW_PREFIX", "assignment/raw")
 
@@ -69,7 +70,8 @@ def _run(cmd: list[str], extra_env: Optional[dict] = None, cwd: Optional[str] = 
     if p.returncode != 0:
         if p.stderr:
             logger.error("--- STDERR ---\n%s", p.stderr)
-        raise subprocess.CalledProcessError(p.returncode, cmd, p.stdout, p.stderr)
+        raise subprocess.CalledProcessError(
+            p.returncode, cmd, p.stdout, p.stderr)
 
 
 def _ensure_tmp() -> None:
@@ -84,7 +86,8 @@ def _s3_client():
         aws_access_key_id=S3_ACCESS_KEY_ID,
         aws_secret_access_key=S3_SECRET_ACCESS_KEY,
         region_name=S3_REGION,
-        config=boto3.session.Config(s3={"addressing_style": S3_ADDRESSING_STYLE}),
+        config=boto3.session.Config(
+            s3={"addressing_style": S3_ADDRESSING_STYLE}),
     )
 
 
@@ -100,7 +103,8 @@ with DAG(
         "force_download": False,
         "s3_bucket": S3_BUCKET,
         "s3_raw_prefix": S3_RAW_PREFIX,
-        "s3_parquet_prefix": os.getenv("S3_PREFIX", "assignment/parquet"),  # สำหรับ transform
+        # สำหรับ transform
+        "s3_parquet_prefix": os.getenv("S3_PREFIX", "assignment/parquet"),
     },
 ) as dag:
 
@@ -111,7 +115,8 @@ with DAG(
         Returns: s3 URI like: s3://<bucket>/<prefix>/<CSV_NAME>
         """
         _ensure_tmp()
-        force_flag = bool(force) if force is not None else bool(dag.params.get("force_download", False))
+        force_flag = bool(force) if force is not None else bool(
+            dag.params.get("force_download", False))
         url = csv_url or str(dag.params.get("csv_url") or CSV_URL)
 
         bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
@@ -133,7 +138,8 @@ with DAG(
             pass
         except Exception as e:
             # ถ้าเช็คไม่ได้ เราจะพยายามดาวน์โหลดต่อ (แสดง warning)
-            logger.warning("[ingest_file] cannot HEAD s3://%s/%s: %s", bucket, s3_key, e)
+            logger.warning(
+                "[ingest_file] cannot HEAD s3://%s/%s: %s", bucket, s3_key, e)
 
         # โหลดเป็นไฟล์ชั่วคราว (.part) แล้วค่อยอัปขึ้น S3
         tmp_path = TMP_DIR / (CSV_NAME + ".part")
@@ -152,7 +158,8 @@ with DAG(
         os.replace(tmp_path, final_path)
         size = final_path.stat().st_size
         if size == 0:
-            raise ValueError(f"[ingest_file] downloaded empty file: {final_path}")
+            raise ValueError(
+                f"[ingest_file] downloaded empty file: {final_path}")
 
         # อัปโหลดขึ้น S3
         logger.info("[ingest_file] upload to %s (%d bytes)", s3_uri, size)
@@ -187,7 +194,8 @@ with DAG(
             raise ValueError(f"[transform_data] not an S3 URI: {csv_s3_uri}")
 
         bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
-        parquet_prefix = s3_parquet_prefix or str(dag.params.get("s3_parquet_prefix") or "assignment/parquet")
+        parquet_prefix = s3_parquet_prefix or str(
+            dag.params.get("s3_parquet_prefix") or "assignment/parquet")
         parquet_prefix = parquet_prefix.strip("/")
 
         # dbt post-hooks copy DuckDB tables to local Parquet files; ensure the
@@ -205,8 +213,10 @@ with DAG(
 
         # Debug/Deps
         _run(["dbt", "--version"], extra_env=s3_env)
-        _run(["dbt", "debug", "--profiles-dir", DBT_PROFILES_DIR, "--project-dir", DBT_PROJECT_DIR], extra_env=s3_env)
-        _run(["dbt", "deps", "--profiles-dir", DBT_PROFILES_DIR, "--project-dir", DBT_PROJECT_DIR], extra_env=s3_env)
+        _run(["dbt", "debug", "--profiles-dir", DBT_PROFILES_DIR,
+             "--project-dir", DBT_PROJECT_DIR], extra_env=s3_env)
+        _run(["dbt", "deps", "--profiles-dir", DBT_PROFILES_DIR,
+             "--project-dir", DBT_PROJECT_DIR], extra_env=s3_env)
 
         # ส่งตัวแปรให้ dbt ใช้
         #  - csv_s3_uri   → path ของไฟล์ CSV บน S3
@@ -244,15 +254,85 @@ with DAG(
         logger.info("[transform_data] completed. Output in: %s", out_uri)
         return out_uri
 
-    @task(retries=1, retry_delay=timedelta(minutes=1), execution_timeout=timedelta(minutes=5))
-    def load_data(s3_out_uri: str) -> None:
+    @task(
+        retries=1,
+        retry_delay=timedelta(minutes=1),
+        execution_timeout=timedelta(minutes=10),
+    )
+    def publish_lineage_docs(_: str) -> str:
+        """Generate dbt docs (manifest + catalog) and upload to S3 for lineage browsing."""
+        
+        s3_env = {
+            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
+            "AWS_SECRET_ACCESS_KEY": S3_SECRET_ACCESS_KEY,
+            "AWS_DEFAULT_REGION": S3_REGION,
+            "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
+            "S3_ENDPOINT_URL": S3_ENDPOINT_URL,
+            "AWS_S3_ADDRESSING_STYLE": S3_ADDRESSING_STYLE,
+        }
+        
+        vars_json = json.dumps({
+            "csv_s3_uri": csv_s3_uri,
+            "s3_bucket": bucket,
+            "s3_prefix": parquet_prefix,
+        })
+        
+        _run([
+            "dbt",
+            "docs",
+            "generate",
+            "--profiles-dir",
+            DBT_PROFILES_DIR,
+            "--project-dir",
+            DBT_PROJECT_DIR,
+            "--vars", vars_json,
+        ], extra_env=s3_env)
+
+        docs_dir = os.path.join(DBT_PROJECT_DIR, "target")
+        timestamp = pendulum.now("UTC").format("YYYYMMDDTHHmmss")
+        base_prefix = S3_DOCS_PREFIX.strip("/")
+        versioned_prefix = "/".join(filter(None, [base_prefix, timestamp]))
+        uploaded = _upload_directory_to_s3(
+            docs_dir, S3_BUCKET, versioned_prefix)
+
+        if not uploaded:
+            raise RuntimeError(
+                "No docs were uploaded; check dbt docs generate output")
+
+        latest_prefix = "/".join(filter(None, [base_prefix, "latest"]))
+        _upload_directory_to_s3(docs_dir, S3_BUCKET, latest_prefix)
+
+        docs_uri = f"s3://{S3_BUCKET}/{versioned_prefix}/index.html"
+        print(
+            f"[publish_lineage_docs] Uploaded {len(uploaded)} files under s3://{S3_BUCKET}/{versioned_prefix}")
+        print(
+            f"[publish_lineage_docs] Latest docs alias at s3://{S3_BUCKET}/{latest_prefix}/index.html")
+        return docs_uri
+
+    @task(
+        retries=1,
+        retry_delay=timedelta(minutes=1),
+        execution_timeout=timedelta(minutes=5),
+    )
+    def load_data(s3_out_uri: str, docs_uri: str) -> None:
         """
-        Publishing placeholder: ตอนนี้ผลอยู่บน S3 แล้ว แค่ log ปลายทาง
+        Placeholder for publishing step. ตอนนี้ Parquet อยู่บน S3 แล้ว แค่ list objects.
         """
-        logger.info("[load_data] published to: %s", s3_out_uri)
+        prefix = S3_PARQUET_PREFIX.strip("/")
+        client = _s3_client()
+        list_kwargs = {"Bucket": S3_BUCKET}
+        if prefix:
+            list_kwargs["Prefix"] = f"{prefix}/"
+        resp = client.list_objects_v2(**list_kwargs)
+        keys = [item["Key"] for item in resp.get("Contents", [])]
+        print(f"[load_data] published to: {s3_out_uri}")
+        print(f"[load_data] objects: {keys}")
+        print(f"[load_data] lineage docs: {docs_uri}")
 
     # Wiring
-    csv_s3 = ingest_file()
-    cleaned = cleansing_data(csv_s3)
-    s3_out = transform_data(cleaned)
-    load_data(s3_out)
+    # or ingest_file(force=True) if you need re-download
+    csv = ingest_file()
+    cleaned = cleansing_data(csv)
+    s3_uri = transform_data(cleaned)
+    docs_uri = publish_lineage_docs(s3_uri)
+    load_data(s3_uri, docs_uri)
