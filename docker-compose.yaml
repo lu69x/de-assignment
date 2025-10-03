@@ -192,7 +192,7 @@ services:
   airflow-init:
     <<: *airflow-common
     container_name: airflow_init
-    networks: 
+    networks:
       - data_eng_nw
     entrypoint: /bin/bash
     # yamllint disable rule:line-length
@@ -327,11 +327,36 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+# --- dbt Docs Console ---
+  dbt-docs:
+    <<: *airflow-common
+    container_name: dbt_docs
+    networks:
+      - data_eng_nw
+    command: >
+      bash -lc "cd ${DBT_PROJECT_DIR:-/opt/airflow/dbt} &&
+      dbt deps --profiles-dir ${DBT_PROFILES_DIR:-/opt/airflow/dbt/profiles} --project-dir ${DBT_PROJECT_DIR:-/opt/airflow/dbt} &&
+      dbt docs generate --profiles-dir ${DBT_PROFILES_DIR:-/opt/airflow/dbt/profiles} --project-dir ${DBT_PROJECT_DIR:-/opt/airflow/dbt} &&
+      dbt docs serve --host 0.0.0.0 --port ${DBT_DOCS_PORT:-8082} --profiles-dir ${DBT_PROFILES_DIR:-/opt/airflow/dbt/profiles} --project-dir ${DBT_PROJECT_DIR:-/opt/airflow/dbt} --no-browser"
+    ports:
+      - "${DBT_DOCS_PORT:-8082}:${DBT_DOCS_PORT:-8082}"
+    environment:
+      <<: *airflow-common-env
+      DBT_DOCS_PORT: "${DBT_DOCS_PORT:-8082}"
+      DBT_PROJECT_DIR: "${DBT_PROJECT_DIR:-/opt/airflow/dbt}"
+      DBT_PROFILES_DIR: "${DBT_PROFILES_DIR:-/opt/airflow/dbt/profiles}"
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+
 # --- Iceberg Metastore ---
   minio:
     image: minio/minio:latest
     container_name: minio
-    networks: 
+    networks:
       - data_eng_nw
     environment:
       MINIO_ROOT_USER: admin
