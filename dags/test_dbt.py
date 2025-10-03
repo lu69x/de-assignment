@@ -29,6 +29,7 @@ S3_RAW_PREFIX = os.getenv("S3_RAW_PREFIX", "assignment/raw")
 # ---------------- Local (เฉพาะ temp) ----------------
 AIRFLOW_DATA_DIR = os.getenv("AIRFLOW_DATA_DIR", "/opt/airflow/data")
 TMP_DIR = Path(os.getenv("TMP_DIR", f"{AIRFLOW_DATA_DIR}/tmp"))
+PARQUET_DIR = Path(os.getenv("PARQUET_DIR", f"{AIRFLOW_DATA_DIR}/parquet"))
 CSV_NAME = os.getenv("CSV_NAME", "cdc_data.csv")
 CSV_URL_DEFAULT = "https://data.cdc.gov/api/views/hksd-2xuw/rows.csv?accessType=DOWNLOAD"
 CSV_URL = os.getenv("CSV_URL", CSV_URL_DEFAULT)
@@ -187,6 +188,10 @@ with DAG(
 
         bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
         parquet_prefix = s3_parquet_prefix or str(dag.params.get("s3_parquet_prefix") or "assignment/parquet")
+
+        # dbt post-hooks copy DuckDB tables to local Parquet files; ensure the
+        # destination folder exists so COPY does not fail with "No such file".
+        PARQUET_DIR.mkdir(parents=True, exist_ok=True)
 
         s3_env = {
             "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY_ID,
