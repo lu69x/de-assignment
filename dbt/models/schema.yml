@@ -14,7 +14,8 @@ models:
         tests: [not_null]
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [year, state, indicator_name]
+          arguments:
+            combination_of_columns: [year, state, indicator_name]
 
   - name: agg_indicator_trend
     description: "Yearly trend grouped by indicator and stratification."
@@ -31,7 +32,8 @@ models:
         tests: [not_null]
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [indicator_name, category, subcategory, year]
+          arguments:
+            combination_of_columns: [indicator_name, category, subcategory, year]
 
   - name: agg_indicator_year_overall
     description: "Overall average by indicator per year (no stratification)."
@@ -44,7 +46,8 @@ models:
         tests: [not_null]
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [indicator_name, year]
+          arguments:
+            combination_of_columns: [indicator_name, year]
 
 exposures:
   - name: public_health_monitoring_dashboard
