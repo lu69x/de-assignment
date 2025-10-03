@@ -155,6 +155,37 @@ with DAG(
     },
 ) as dag:
 
+    @task(
+        retries=3,
+        retry_delay=timedelta(seconds=20),
+        execution_timeout=timedelta(minutes=5),
+    )
+    def preflight_checks() -> None:
+        """Verify core dependencies (dbt CLI, MinIO, Nessie, Trino) before running the pipeline."""
+
+        s3_env = _dbt_env()
+        _run(["dbt", "--version"], extra_env=s3_env)
+
+        bucket = str(dag.params.get("s3_bucket") or S3_BUCKET)
+        client = _s3_client()
+        try:
+            client.head_bucket(Bucket=bucket)
+        except client.exceptions.NoSuchBucket:  # type: ignore[attr-defined]
+            raise RuntimeError(f"S3 bucket not found: {bucket}")
+
+        health_checks = {
+            "MinIO": f"{S3_ENDPOINT_URL.rstrip('/')}/minio/health/live",
+            "Nessie": "http://nessie:19120/api/v1/config",
+            "Trino": "http://trino:8080/v1/info",
+        }
+
+        for name, url in health_checks.items():
+            try:
+                resp = requests.get(url, timeout=HTTP_TIMEOUT)
+                resp.raise_for_status()
+            except requests.RequestException as exc:  # pragma: no cover - Airflow runtime validation
+                raise RuntimeError(f"{name} is not reachable at {url}: {exc}") from exc
+
     @task(retries=3, retry_delay=timedelta(seconds=10), execution_timeout=timedelta(minutes=3))
     def ingest_file(force: Optional[bool] = None, csv_url: Optional[str] = None) -> str:
         """
@@ -377,7 +408,9 @@ with DAG(
 
     # Wiring
     # or ingest_file(force=True) if you need re-download
+    ready = preflight_checks()
     csv = ingest_file()
+    ready >> csv
     cleaned = cleansing_data(csv)
     s3_uri = transform_data(cleaned)
     docs_uri = publish_lineage_docs(cleaned, s3_uri)
