@@ -61,6 +61,9 @@ AIRFLOW_GID=${_values[AIRFLOW_GID]}
 AIRFLOW_PROJ_DIR=${_values[AIRFLOW_PROJ_DIR]}
 # _PIP_ADDITIONAL_REQUIREMENTS="-r /opt/airflow/requirements.txt"
 
+# --- Observability / Docs ---
+DBT_DOCS_PORT=${_values[DBT_DOCS_PORT]}
+
 # --- MinIO / S3 Configuration ---
 S3_ENDPOINT_URL=${_values[S3_ENDPOINT_URL]}
 S3_ACCESS_KEY_ID=${_values[S3_ACCESS_KEY_ID]}
@@ -109,6 +112,7 @@ declare -A defaults=(
     [AIRFLOW_UID]="$(id -u)"
     [AIRFLOW_GID]="$(id -g)"
     [AIRFLOW_PROJ_DIR]="."
+    [DBT_DOCS_PORT]="8082"
     [S3_ENDPOINT_URL]="http://minio:9000"
     [S3_ACCESS_KEY_ID]="admin"
     [S3_SECRET_ACCESS_KEY]="admin123456"
@@ -140,6 +144,7 @@ cat <<EOF
 ✅ $ENV_FILE is ready!
    AIRFLOW_UID=${final_values[AIRFLOW_UID]}
    AIRFLOW_GID=${final_values[AIRFLOW_GID]}
+   DBT_DOCS_PORT=${final_values[DBT_DOCS_PORT]}
    S3_BUCKET=${final_values[S3_BUCKET]}
    S3_PARQUET_PREFIX=${final_values[S3_PARQUET_PREFIX]}
    S3_DOCS_PREFIX=${final_values[S3_DOCS_PREFIX]}

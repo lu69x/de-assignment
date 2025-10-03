@@ -41,6 +41,7 @@ CSV_URL = os.getenv("CSV_URL", CSV_URL_DEFAULT)
 # ---------------- dbt config ----------------
 DBT_PROFILES_DIR = os.getenv("DBT_PROFILES_DIR", "/opt/airflow/dbt/profiles")
 DBT_PROJECT_DIR = os.getenv("DBT_PROJECT_DIR", "/opt/airflow/dbt")
+DBT_DOCS_PORT = os.getenv("DBT_DOCS_PORT", "8082")
 
 # ---------------- HTTP config ----------------
 HTTP_TIMEOUT_CONNECT = int(os.getenv("HTTP_TIMEOUT_CONNECT", "5"))
@@ -352,9 +353,7 @@ with DAG(
         execution_timeout=timedelta(minutes=5),
     )
     def load_data(s3_out_uri: str, docs_uri: str) -> None:
-        """
-        Placeholder for publishing step. ตอนนี้ Parquet อยู่บน S3 แล้ว แค่ list objects.
-        """
+        """List the published parquet objects and remind operators how to use the lineage docs."""
         prefix = S3_PARQUET_PREFIX.strip("/")
         client = _s3_client()
         list_kwargs = {"Bucket": S3_BUCKET}
@@ -365,6 +364,16 @@ with DAG(
         print(f"[load_data] published to: {s3_out_uri}")
         print(f"[load_data] objects: {keys}")
         print(f"[load_data] lineage docs: {docs_uri}")
+        docs_folder = docs_uri.rsplit("/", 1)[0]
+        print(
+            "[load_data] Tip: download the docs bundle from MinIO or sync with "
+            f"`aws --endpoint-url {S3_ENDPOINT_URL} s3 sync {docs_folder} ./docs` "
+            "then open ./docs/index.html",
+        )
+        print(
+            "[load_data] Live console: visit "
+            f"http://localhost:{DBT_DOCS_PORT}/ once the dbt-docs service is running",
+        )
 
     # Wiring
     # or ingest_file(force=True) if you need re-download
