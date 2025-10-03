@@ -9,7 +9,8 @@ data_eng_assignment:
       extensions: [httpfs, parquet, json, iceberg]
       settings:
         # --- MinIO / S3 settings for DuckDB ---
-        s3_endpoint: "{{ env_var('AWS_ENDPOINT_URL') }}"          # ชี้ service name ใน docker network
+        # DuckDB จะเติม prefix http:// เอง ดังนั้นต้องตัด scheme ออกจาก endpoint ที่มาจาก ENV
+        s3_endpoint: "{{ env_var('AWS_ENDPOINT_URL').replace('http://', '').replace('https://', '') }}"
         s3_use_ssl: false                                         # MinIO ใน compose ใช้ http
         s3_url_style: "{{ env_var('AWS_S3_ADDRESSING_STYLE') }}"  # สำคัญ! ให้ใช้ path-style: s3://bucket/key
         s3_region: "{{ env_var('AWS_DEFAULT_REGION') }}"
