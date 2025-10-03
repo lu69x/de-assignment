@@ -7,3 +7,13 @@ data_eng_assignment:
       schema: analytics
       threads: 4
       extensions: [httpfs, parquet, json, iceberg]
+      settings:
+        # --- MinIO / S3 settings for DuckDB ---
+        s3_endpoint: "{{ env_var('AWS_ENDPOINT_URL') }}"          # ชี้ service name ใน docker network
+        s3_use_ssl: false                                         # MinIO ใน compose ใช้ http
+        s3_url_style: "{{ env_var('AWS_S3_ADDRESSING_STYLE') }}"  # สำคัญ! ให้ใช้ path-style: s3://bucket/key
+        s3_region: "{{ env_var('AWS_DEFAULT_REGION') }}"
+
+        # ใส่คีย์จาก ENV (ที่เราเซ็ตใน compose/setup.sh)
+        s3_access_key_id: "{{ env_var('AWS_ACCESS_KEY_ID') }}"
+        s3_secret_access_key: "{{ env_var('AWS_SECRET_ACCESS_KEY') }}"
