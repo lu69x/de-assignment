@@ -16,9 +16,9 @@ unpivoted as (
     v.strat_cat_id, v.strat_cat, v.strat_id, v.strat
   from base
   cross join unnest(array[
-    row(strat_cat_id1, strat_cat1, strat_id1, strat1),
-    row(strat_cat_id2, strat_cat2, strat_id2, strat2),
-    row(strat_cat_id3, strat_cat3, strat_id3, strat3)
+    struct_pack(strat_cat_id := strat_cat_id1, strat_cat := strat_cat1, strat_id := strat_id1, strat := strat1),
+    struct_pack(strat_cat_id := strat_cat_id2, strat_cat := strat_cat2, strat_id := strat_id2, strat := strat2),
+    struct_pack(strat_cat_id := strat_cat_id3, strat_cat := strat_cat3, strat_id := strat_id3, strat := strat3)
   ]) as v(strat_cat_id, strat_cat, strat_id, strat)
   where v.strat_cat_id is not null and v.strat_id is not null
 )
