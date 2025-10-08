@@ -5,7 +5,7 @@ with s as (
 ),
 fact as (
   select
-    {{ dbt_utils.surrogate_key(['obs_sk','strat_cat_id','strat_id']) }} as fact_strat_sk,
+    {{ dbt_utils.generate_surrogate_key(['obs_sk','strat_cat_id','strat_id']) }} as fact_strat_sk,
     cast(year as int)       as year_start,
     cast(year_end as int)   as year_end,
     cast(location_id as int) as location_id,

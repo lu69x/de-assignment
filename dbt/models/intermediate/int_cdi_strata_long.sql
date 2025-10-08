@@ -6,7 +6,7 @@ with base as (
 -- เตรียมชุด stratification แบบ array แล้ว explode เป็นแถว
 unpivoted as (
   select
-    {{ dbt_utils.surrogate_key(['year','year_end','location_id','topic_id','question_id','response_id','value_type_id','state']) }} as obs_sk,
+    {{ dbt_utils.generate_surrogate_key(['year','year_end','location_id','topic_id','question_id','response_id','value_type_id','state']) }} as obs_sk,
     year, year_end,
     location_id, state, state_name, lon, lat,
     topic_id, topic, question_id, question, response_id, response,
