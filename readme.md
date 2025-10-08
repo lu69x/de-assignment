@@ -20,13 +20,11 @@ Data Engineering assignment stack for practicing **Airflow orchestration**, **db
 - Docker Compose ≥ v2.x  
 - Bash/Shell  
 - RAM ≥ 8 GB, CPU ≥ 2–4 cores  
-- Open ports:  
-  - `8080` (Airflow)  
-  - `8081/8082` (Trino)  
-  - `9000/9001` (MinIO)  
-- `.env` file with:
-  - `AIRFLOW_UID`, `AIRFLOW_GID` (default: 50000)  
-  - `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`  
+- Open ports:
+  - `8080` (Airflow)
+  - `8081` (Trino coordinator → forwarded to container port `8080`)
+  - `8082` (dbt docs console → forwarded to container port `${DBT_DOCS_PORT:-8082}`)
+  - `9000/9001` (MinIO API / Console)
 
 > ⚠️ No Python needed on host — everything runs inside containers.  
 
@@ -65,6 +63,22 @@ Data Engineering assignment stack for practicing **Airflow orchestration**, **db
   - Trino Coordinator → http://localhost:8081
   - dbt Docs Console → http://localhost:8082 (or `http://localhost:${DBT_DOCS_PORT}` if customized)
 
+## 🔌 Service ports
+
+| Service | Host port(s) | Container port(s) | Notes | Conflict? |
+|---------|---------------|-------------------|-------|-----------|
+| Airflow API server | `8080` | `8080` | Primary Airflow UI and REST API endpoint. | No |
+| Trino coordinator | `8081` | `8080` | Query coordinator exposed via host port `8081`. | No |
+| dbt docs console | `${DBT_DOCS_PORT:-8082}` (default `8082`) | `${DBT_DOCS_PORT:-8082}` | Launches interactive dbt docs; host port configurable. | No (unique by default) |
+| Airflow Flower (optional profile) | `5555` | `5555` | Enable with `--profile flower` to monitor Celery workers. | No |
+| MinIO API & console | `9000` (API), `9001` (console) | `9000`, `9001` | Object storage endpoint (`9000`) and admin UI (`9001`). | No |
+| Project Nessie catalog | `19120` | `19120` | Iceberg catalog service consumed by Trino. | No |
+
+> ℹ️ Redis only exposes port `6379` inside the Docker network (no host binding), so it cannot conflict with host ports.
+
+> ✅ All published host ports are unique, so no services compete for the same host port out-of-the-box.
+
+---
 
 ## System Diagram
 ```mermaid
@@ -140,3 +154,4 @@ The `data_engineer_assignment` DAG now generates dbt documentation after every r
 - **ตรวจสอบคุณภาพข้อมูล**: ส่วน `Tests` ใน dbt docs แสดงผลการรัน test ล่าสุด ช่วยให้ทีม Data/Analytics ตรวจสอบคุณภาพข้อมูลก่อนใช้งานจริง
 
 > Tip: dbt exposures defined under `dbt/models/schema.yml` describe downstream dashboards so the lineage view highlights how marts power each consumer.
+a
