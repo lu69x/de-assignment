@@ -1,66 +1,107 @@
 version: 2
 
 models:
-  - name: agg_indicator_year_state
-    description: "Average value by year x state x indicator."
+  - name: dim_location
     columns:
-      - name: year
-        tests: [not_null]
-      - name: state
-        tests: [not_null]
-      - name: indicator_name
-        tests: [not_null]
-      - name: avg_value
-        tests: [not_null]
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [year, state, indicator_name]
+      - name: location_id
+        tests: [not_null, unique]
 
-  - name: agg_indicator_trend
-    description: "Yearly trend grouped by indicator and stratification."
+  - name: dim_topic
     columns:
-      - name: indicator_name
-        tests: [not_null]
-      - name: category
-        tests: [not_null]
-      - name: subcategory
-        tests: [not_null]
-      - name: year
-        tests: [not_null]
-      - name: avg_value
-        tests: [not_null]
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [indicator_name, category, subcategory, year]
+      - name: topic_id
+        tests: [not_null, unique]
 
-  - name: agg_indicator_year_overall
-    description: "Overall average by indicator per year (no stratification)."
+  - name: dim_question
     columns:
-      - name: indicator_name
-        tests: [not_null]
-      - name: year
-        tests: [not_null]
-      - name: avg_value
-        tests: [not_null]
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [indicator_name, year]
+      - name: question_id
+        tests: [not_null, unique]
+      - name: topic_id
+        tests:
+          - relationships:
+              to: ref('dim_topic')
+              field: topic_id
 
-exposures:
-  - name: public_health_monitoring_dashboard
-    type: dashboard
-    maturity: medium
-    url: https://trino.local/dashboard/public-health
-    description: >-
-      Analytics workspace that tracks CDC chronic disease indicators across time, state, and stratification.
-      The dashboard consumes all marts published by this project.
-    owner:
-      name: Data Engineering Team
-      email: data-eng@example.com
-    depends_on:
-      - ref('agg_indicator_year_state')
-      - ref('agg_indicator_year_overall')
-      - ref('agg_indicator_trend')
+  - name: dim_response
+    columns:
+      - name: response_id
+        tests: [unique]   # อาจว่างได้ เลยไม่ใส่ not_null
+
+  - name: dim_value_type
+    columns:
+      - name: value_type_id
+        tests: [not_null, unique]
+
+  - name: dim_strat_category
+    columns:
+      - name: strat_cat_id
+        tests: [not_null, unique]
+
+  - name: dim_strat_value
+    columns:
+      - name: strat_id
+        tests: [not_null]
+      - name: strat_cat_id
+        tests:
+          - relationships:
+              to: ref('dim_strat_category')
+              field: strat_cat_id
+
+  - name: fact_health_metric_base
+    columns:
+      - name: fact_sk
+        tests: [not_null, unique]
+      - name: location_id
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_id
+      - name: topic_id
+        tests:
+          - relationships:
+              to: ref('dim_topic')
+              field: topic_id
+      - name: question_id
+        tests:
+          - relationships:
+              to: ref('dim_question')
+              field: question_id
+      - name: value_type_id
+        tests:
+          - relationships:
+              to: ref('dim_value_type')
+              field: value_type_id
+
+  - name: fact_health_metric
+    columns:
+      - name: fact_strat_sk
+        tests: [not_null, unique]
+      - name: strat_cat_id
+        tests:
+          - relationships:
+              to: ref('dim_strat_category')
+              field: strat_cat_id
+      - name: strat_id
+        tests:
+          - relationships:
+              to: ref('dim_strat_value')
+              field: strat_id
+      - name: location_id
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_id
+      - name: topic_id
+        tests:
+          - relationships:
+              to: ref('dim_topic')
+              field: topic_id
+      - name: question_id
+        tests:
+          - relationships:
+              to: ref('dim_question')
+              field: question_id
+      - name: value_type_id
+        tests:
+          - relationships:
+              to: ref('dim_value_type')
+              field: value_type_id
