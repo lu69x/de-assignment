@@ -21,6 +21,15 @@ models:
       # ถ้าต้องการ schema แยก:
       # +schema: staging
 
+    intermediate:
+      +materialized: view
+
+    dim:
+      +materialized: table
+
+    fact:
+      +materialized: table
+
     marts:
       +materialized: table          # ชั้น marts เป็น table (จะถูก COPY เป็น Parquet)
       # เขียนผลลัพธ์ของแต่ละ model ใน marts ออกเป็น Parquet บน S3/MinIO หลังรันเสร็จ
