@@ -5,6 +5,9 @@ config-version: 2
 
 profile: data_eng_assignment
 
+vars:
+  surrogate_key_treat_nulls_as_empty_strings: true
+
 model-paths: ["models"]
 seed-paths: ["seeds"]
 target-path: "target"
@@ -21,13 +24,7 @@ models:
       # ถ้าต้องการ schema แยก:
       # +schema: staging
 
-    intermediate:
-      +materialized: view
-
     dim:
-      +materialized: table
-
-    fact:
       +materialized: table
 
     marts:

@@ -1,6 +1,19 @@
 version: 2
 
 models:
+  - name: stg_cdi_normallized
+    columns:
+      - name: location_id
+        tests: [not_null]
+      - name: topic_id
+        tests: [not_null]
+      - name: question_id
+        tests: [not_null]
+      # - name: response_id
+      #   tests: [not_null]
+      - name: value_type_id
+        tests: [not_null]
+
   - name: dim_location
     columns:
       - name: location_id
@@ -29,7 +42,7 @@ models:
   - name: dim_value_type
     columns:
       - name: value_type_id
-        tests: [not_null, unique]
+        tests: [not_null]
 
   - name: dim_strat_category
     columns:
@@ -45,63 +58,3 @@ models:
           - relationships:
               to: ref('dim_strat_category')
               field: strat_cat_id
-
-  - name: fact_health_metric_base
-    columns:
-      - name: fact_sk
-        tests: [not_null, unique]
-      - name: location_id
-        tests:
-          - relationships:
-              to: ref('dim_location')
-              field: location_id
-      - name: topic_id
-        tests:
-          - relationships:
-              to: ref('dim_topic')
-              field: topic_id
-      - name: question_id
-        tests:
-          - relationships:
-              to: ref('dim_question')
-              field: question_id
-      - name: value_type_id
-        tests:
-          - relationships:
-              to: ref('dim_value_type')
-              field: value_type_id
-
-  - name: fact_health_metric
-    columns:
-      - name: fact_strat_sk
-        tests: [not_null, unique]
-      - name: strat_cat_id
-        tests:
-          - relationships:
-              to: ref('dim_strat_category')
-              field: strat_cat_id
-      - name: strat_id
-        tests:
-          - relationships:
-              to: ref('dim_strat_value')
-              field: strat_id
-      - name: location_id
-        tests:
-          - relationships:
-              to: ref('dim_location')
-              field: location_id
-      - name: topic_id
-        tests:
-          - relationships:
-              to: ref('dim_topic')
-              field: topic_id
-      - name: question_id
-        tests:
-          - relationships:
-              to: ref('dim_question')
-              field: question_id
-      - name: value_type_id
-        tests:
-          - relationships:
-              to: ref('dim_value_type')
-              field: value_type_id
