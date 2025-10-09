@@ -60,21 +60,23 @@ select
   low_ci_num                   as low_ci,
   high_ci_num                  as high_ci,
 
-  -- มิติการแบ่งกลุ่ม (Stratification)
+
+  -- พิกัด & ไอดีต่าง ๆ
+  -- nullif(Geolocation, '')      as geolocation_wkt,
+  nullif(LocationID, '')       as location_id,
+  nullif(TopicID, '')          as topic_id,
+  nullif(QuestionID, '')       as question_id,
+  nullif(ResponseID, '')       as response_id,
+  nullif(DataValueTypeID, '')  as value_type_id,
+
+-- มิติการแบ่งกลุ่ม (Stratification)
   StratificationCategory1      as strat_cat1,
   Stratification1              as strat1,
   nullif(StratificationCategory2, '') as strat_cat2,
   nullif(Stratification2, '')         as strat2,
   nullif(StratificationCategory3, '') as strat_cat3,
   nullif(Stratification3, '')         as strat3,
-
-  -- พิกัด & ไอดีต่าง ๆ
-  nullif(Geolocation, '')      as geolocation_wkt,
-  nullif(LocationID, '')       as location_id,
-  nullif(TopicID, '')          as topic_id,
-  nullif(QuestionID, '')       as question_id,
-  nullif(ResponseID, '')       as response_id,
-  nullif(DataValueTypeID, '')  as value_type_id,
+  
   nullif(StratificationCategoryID1, '') as strat_cat_id1,
   nullif(StratificationID1, '')         as strat_id1,
   nullif(StratificationCategoryID2, '') as strat_cat_id2,

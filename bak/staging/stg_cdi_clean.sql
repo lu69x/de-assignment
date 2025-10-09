@@ -69,7 +69,7 @@ select
   nullif(Stratification3, '')         as strat3,
 
   -- พิกัด & ไอดีต่าง ๆ
-  nullif(Geolocation, '')      as geolocation_wkt,
+  -- nullif(Geolocation, '')      as geolocation_wkt,
   nullif(LocationID, '')       as location_id,
   nullif(TopicID, '')          as topic_id,
   nullif(QuestionID, '')       as question_id,

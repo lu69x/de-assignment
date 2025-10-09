@@ -24,13 +24,7 @@ models:
       # ถ้าต้องการ schema แยก:
       # +schema: staging
 
-    intermediate:
-      +materialized: view
-
     dim:
-      +materialized: table
-
-    fact:
       +materialized: table
 
     marts:
